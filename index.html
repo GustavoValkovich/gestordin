@@ -554,6 +554,9 @@
             <div class="form-group" style="margin-bottom:12px;">
               <label>Fecha</label>
               <input type="date" id="visita-fecha">
+              <script>
+                (function(){var d=new Date();document.getElementById('visita-fecha').value=d.getFullYear()+'-'+(d.getMonth()<9?'0':'')+(d.getMonth()+1)+'-'+(d.getDate()<10?'0':'')+d.getDate();})();
+              </script>
             </div>
             <div class="form-group">
               <label>Historial / Observaciones</label>
@@ -694,18 +697,18 @@
 
 <!-- ── MODALES ──────────────────────────────────────────────── -->
 <!-- Observación -->
-<div id="modal-obs" class="modal-backdrop hidden" onclick="if(event.target===this)this.classList.add('hidden')">
+<div id="modal-obs" class="modal-backdrop hidden" onclick="if(event.target===this)closeModal(this.id)">
   <div class="modal-box">
     <div class="modal-head" style="background:#fef9c3;">
       <h3>⚠️ Observación del Paciente</h3>
     </div>
     <div class="modal-body"><p id="obs-text" style="font-size:0.92rem;line-height:1.75;color:var(--text);white-space:pre-wrap;"></p></div>
-    <div class="modal-foot"><button class="btn btn-primary" onclick="document.getElementById('modal-obs').classList.add('hidden')">Entendido</button></div>
+    <div class="modal-foot"><button class="btn btn-primary" onclick="closeModal('modal-obs')">Entendido</button></div>
   </div>
 </div>
 
 <!-- Editar paciente -->
-<div id="modal-edit" class="modal-backdrop hidden" onclick="if(event.target===this)this.classList.add('hidden')">
+<div id="modal-edit" class="modal-backdrop hidden" onclick="if(event.target===this)closeModal(this.id)">
   <div class="modal-box">
     <div class="modal-head">
       <h3>Editar Paciente</h3>
@@ -747,7 +750,7 @@
         <div class="form-group full"><label>Email</label><input type="email" id="ep-email"></div>
         <div class="form-group full"><label>Observación</label><textarea id="ep-obs" rows="3"></textarea></div>
         <div class="full modal-foot" style="border-top:1px solid var(--border);">
-          <button type="button" class="btn btn-outline" onclick="document.getElementById('modal-edit').classList.add('hidden')">Cancelar</button>
+          <button type="button" class="btn btn-outline" onclick="closeModal('modal-edit')">Cancelar</button>
           <button type="submit" class="btn btn-primary">💾 Guardar</button>
         </div>
       </div>
@@ -756,11 +759,11 @@
 </div>
 
 <!-- Popup día calendario -->
-<div id="modal-day" class="modal-backdrop hidden" onclick="if(event.target===this)this.classList.add('hidden')">
+<div id="modal-day" class="modal-backdrop hidden" onclick="if(event.target===this)closeModal(this.id)">
   <div class="modal-box" style="max-width:400px;">
     <div class="modal-head">
       <h3 id="modal-day-title"></h3>
-      <button onclick="document.getElementById('modal-day').classList.add('hidden')" style="background:none;border:none;font-size:1.3rem;color:var(--muted);cursor:pointer;">✕</button>
+      <button onclick="closeModal('modal-day')" style="background:none;border:none;font-size:1.3rem;color:var(--muted);cursor:pointer;">✕</button>
     </div>
     <div id="modal-day-list" class="modal-body"></div>
   </div>
@@ -798,7 +801,8 @@ const S = {
 };
 
 // ── UTILS ────────────────────────────────────────────────
-const id    = x => document.getElementById(x);
+const $ = x => document.getElementById(x);
+const id = $;
 const val   = x => { const e = id(x); return e ? e.value.trim() : ''; };
 const pad   = n => n < 10 ? '0'+n : ''+n;
 const esc   = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -1163,7 +1167,7 @@ function openPaciente(pid) {
   if(p.telefono)        chips+=`<div class="chip">📞 <strong>${esc(p.telefono)}</strong></div>`;
   if(p.email)           chips+=`<div class="chip">✉️ <strong>${esc(p.email)}</strong></div>`;
   id('patient-chips').innerHTML=chips||'<span class="chip">Sin datos adicionales</span>';
-  if(p.observacion) { id('obs-text').textContent=p.observacion; id('modal-obs').classList.remove('hidden'); }
+  if(p.observacion) { id('obs-text').textContent=p.observacion; openModal('modal-obs'); }
   loadVisitas();
   loadArchivosPaciente();
 }
@@ -1445,7 +1449,7 @@ function showEditModal() {
   id('ep-telefono').value=p.telefono||''; id('ep-obs').value=p.observacion||'';
   id('ep-dni').value=p.dni||''; id('ep-email').value=p.email||'';
   if(id('ep-genero')){id('ep-genero').value=p.genero||'';id('ep-genero').style.color=p.genero?'':'var(--muted)';}
-  id('modal-edit').classList.remove('hidden');
+  openModal('modal-edit');
 }
 
 async function onSubmitEditPaciente(e) {
@@ -1469,8 +1473,8 @@ async function onSubmitEditPaciente(e) {
     Object.assign(S.currentPaciente,data);
     const idx=S.pacientes.findIndex(p=>p.id===data.id);
     if(idx>=0) S.pacientes[idx]=Object.assign({},S.pacientes[idx],data);
-    id('modal-edit').classList.remove('hidden');
-    id('modal-edit').classList.add('hidden');
+    openModal('modal-edit');
+    closeModal('modal-edit');
     hideOverlay(); toast('Paciente actualizado','success');
     openPaciente(data.id);
   } catch(err){hideOverlay();toast('Error: '+err.message,'error');}
@@ -1490,7 +1494,7 @@ async function confirmDelete() {
     }
     S.pacientes=S.pacientes.filter(p=>p.id!==S.currentPaciente.id);
     S._statsPacientes=S.pacientes;
-    id('modal-edit').classList.add('hidden');
+    closeModal('modal-edit');
     hideOverlay(); renderPacientes(S.pacientes); goTo('home'); toast('Paciente eliminado','success');
   } catch(e){hideOverlay();toast('Error: '+e.message,'error');}
 }
@@ -1559,11 +1563,11 @@ function openDayModal(fStr) {
     return `<div class="patient-row" onclick="irAVisitaDesdeCalendario('${esc(v.idPaciente)}','${esc(v.id)}')" style="cursor:pointer;border-bottom:1px solid var(--border);">
       <div class="patient-info"><div class="patient-name">👤 ${esc(v.pacienteNombre)}</div><div class="patient-meta">${esc(prev)}</div></div></div>`;
   }).join('');
-  id('modal-day').classList.remove('hidden');
+  openModal('modal-day');
 }
 
 async function irAVisitaDesdeCalendario(pid,vid) {
-  id('modal-day').classList.add('hidden');
+  closeModal('modal-day');
   let p=S.pacientes.find(x=>x.id===pid);
   if(!p){toast('Paciente no encontrado','error');return;}
   S.currentPaciente=p;
@@ -1638,6 +1642,16 @@ function openNegatoscopio(){id('negatoscopio').style.display='block';}
 function localToday() {
   const d = new Date();
   return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+}
+
+// Funciones globales para cerrar modales desde onclick HTML
+function closeModal(modalId) {
+  const el = document.getElementById(modalId);
+  if (el) { el.classList.add('hidden'); el.style.display=''; }
+}
+function openModal(modalId) {
+  const el = document.getElementById(modalId);
+  if (el) { el.classList.remove('hidden'); }
 }
 
 // ── ESTADÍSTICAS ─────────────────────────────────────────
