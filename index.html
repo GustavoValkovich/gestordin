@@ -1127,6 +1127,8 @@ async function onSubmitNewPaciente(e) {
     S._pacRows.push([newId]);
     S.pacientes.push(data);
     S._statsPacientes = S.pacientes;
+    // Actualizar listado en home para que aparezca al volver
+    renderPacientes(S.pacientes);
 
     // Limpiar form
     ['np-nombre','np-apellido','np-fnac','np-obra','np-ciudad','np-telefono','np-obs','np-dni','np-email'].forEach(f=>{if(id(f))id(f).value='';});
