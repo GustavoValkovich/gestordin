@@ -1260,10 +1260,18 @@ let _pacientesFolderId = null;
 
 async function getPacientesParentFolderId() {
   if (_pacientesFolderId) return _pacientesFolderId;
-  // Buscar carpeta "Pacientes" dentro de "Historiales_Medicos"
-  const r = await apiGet(`${DRIVE_BASE}/files?q=name='Pacientes' and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id,name)`);
-  if (r.files&&r.files.length) { _pacientesFolderId=r.files[0].id; return _pacientesFolderId; }
-  throw new Error('No se encontró la carpeta Pacientes en Drive');
+
+  // 1. Buscar carpeta raíz "Historiales_Medicos"
+  const r1 = await apiGet(`${DRIVE_BASE}/files?q=name='Historiales_Medicos' and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id,name)`);
+  if (!r1.files || !r1.files.length) throw new Error('No se encontró la carpeta Historiales_Medicos en Drive');
+  const raizId = r1.files[0].id;
+
+  // 2. Buscar carpeta "Pacientes" dentro de "Historiales_Medicos"
+  const r2 = await apiGet(`${DRIVE_BASE}/files?q=name='Pacientes' and '${raizId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false&fields=files(id,name)`);
+  if (!r2.files || !r2.files.length) throw new Error('No se encontró la carpeta Pacientes dentro de Historiales_Medicos');
+
+  _pacientesFolderId = r2.files[0].id;
+  return _pacientesFolderId;
 }
 
 async function getOrCreateVisitaFolder(pacFolderId, fecha, tipo) {
