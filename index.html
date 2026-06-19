@@ -486,9 +486,10 @@
                 </div>
                 <div class="form-group"><label>DNI</label><input type="text" id="np-dni" inputmode="numeric" spellcheck="false"></div>
                 <div class="form-group"><label>Género</label>
-                  <select id="np-genero" onchange="this.style.color=this.value?'':'var(--muted)'">
-                    <option value="">— Sin especificar —</option>
-                  </select>
+                  <div class="combo-wrap">
+                    <input type="text" id="np-genero" placeholder="Hombre / Mujer" autocomplete="new-password" readonly style="cursor:pointer;caret-color:transparent;" onfocus="comboOpen('np-genero-dd')" onblur="comboBlur('np-genero-dd')">
+                    <div id="np-genero-dd" class="combo-dropdown" data-input="np-genero"></div>
+                  </div>
                 </div>
                 <div class="form-group">
                   <label>Obra Social</label>
@@ -730,9 +731,10 @@
         </div>
         <div class="form-group"><label>DNI</label><input type="text" id="ep-dni" inputmode="numeric"></div>
         <div class="form-group"><label>Género</label>
-          <select id="ep-genero" onchange="this.style.color=this.value?'':'var(--muted)'">
-            <option value="">— Sin especificar —</option>
-          </select>
+          <div class="combo-wrap">
+            <input type="text" id="ep-genero" placeholder="Hombre / Mujer" autocomplete="new-password" readonly style="cursor:pointer;caret-color:transparent;" onfocus="comboOpen('ep-genero-dd')" onblur="comboBlur('ep-genero-dd')">
+            <div id="ep-genero-dd" class="combo-dropdown" data-input="ep-genero"></div>
+          </div>
         </div>
         <div class="form-group"><label>Obra Social</label>
           <div class="combo-wrap">
@@ -1030,16 +1032,13 @@ async function startApp() {
 }
 
 function initCombos() {
-  COMBO_ITEMS['np-obra-dd'] = S.recursos.obrasSociales;
-  COMBO_ITEMS['ep-obra-dd'] = S.recursos.obrasSociales;
+  COMBO_ITEMS['np-obra-dd']   = S.recursos.obrasSociales;
+  COMBO_ITEMS['ep-obra-dd']   = S.recursos.obrasSociales;
   COMBO_ITEMS['np-ciudad-dd'] = S.recursos.ciudades;
   COMBO_ITEMS['ep-ciudad-dd'] = S.recursos.ciudades;
-  ['np-genero','ep-genero'].forEach(sid => {
-    const sel=id(sid); if(!sel) return;
-    while(sel.options.length>1) sel.remove(1);
-    S.recursos.generos.forEach(g => { const o=document.createElement('option'); o.value=g; o.textContent=g; sel.appendChild(o); });
-    sel.style.color='var(--muted)';
-  });
+  // Género: lista fija, sin posibilidad de escribir
+  COMBO_ITEMS['np-genero-dd'] = ['Hombre','Mujer'];
+  COMBO_ITEMS['ep-genero-dd'] = ['Hombre','Mujer'];
 }
 
 // ── PACIENTES ────────────────────────────────────────────
@@ -1106,7 +1105,7 @@ async function onSubmitNewPaciente(e) {
     nombre:val('np-nombre'), apellido:val('np-apellido'),
     fechaNacimiento:fechaNorm(val('np-fnac')), obraSocial:val('np-obra'),
     ciudad:val('np-ciudad'), telefono:val('np-telefono'),
-    observacion:val('np-obs'), genero:id('np-genero').value,
+    observacion:val('np-obs'), genero:val('np-genero'),
     dni:val('np-dni'), email:val('np-email')
   };
   if (!data.nombre||!data.apellido) { toast('Nombre y apellido son obligatorios','error'); return; }
@@ -1138,7 +1137,7 @@ async function onSubmitNewPaciente(e) {
 
     // Limpiar form
     ['np-nombre','np-apellido','np-fnac','np-obra','np-ciudad','np-telefono','np-obs','np-dni','np-email'].forEach(f=>{if(id(f))id(f).value='';});
-    id('np-genero').value=''; id('np-genero').style.color='var(--muted)';
+    
     hideOverlay();
     toast('Paciente registrado','success');
     openPaciente(String(newId));
@@ -1448,7 +1447,7 @@ function showEditModal() {
   id('ep-obra').value=p.obraSocial||''; id('ep-ciudad').value=p.ciudad||'';
   id('ep-telefono').value=p.telefono||''; id('ep-obs').value=p.observacion||'';
   id('ep-dni').value=p.dni||''; id('ep-email').value=p.email||'';
-  if(id('ep-genero')){id('ep-genero').value=p.genero||'';id('ep-genero').style.color=p.genero?'':'var(--muted)';}
+  id('ep-genero').value=p.genero||'';
   openModal('modal-edit');
 }
 
@@ -1457,7 +1456,7 @@ async function onSubmitEditPaciente(e) {
   const data={id:S.currentPaciente.id,nombre:val('ep-nombre'),apellido:val('ep-apellido'),
     fechaNacimiento:fechaNorm(val('ep-fnac')),obraSocial:val('ep-obra'),ciudad:val('ep-ciudad'),
     telefono:val('ep-telefono'),observacion:val('ep-obs'),
-    genero:id('ep-genero')?id('ep-genero').value:'',dni:val('ep-dni'),email:val('ep-email')};
+    genero:val('ep-genero'),dni:val('ep-dni'),email:val('ep-email')};
   showOverlay('Guardando…');
   try {
     const rows=await sheetGet('Pacientes!A:N');
