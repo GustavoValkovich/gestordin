@@ -700,7 +700,7 @@
       <h3>⚠️ Observación del Paciente</h3>
     </div>
     <div class="modal-body"><p id="obs-text" style="font-size:0.92rem;line-height:1.75;color:var(--text);white-space:pre-wrap;"></p></div>
-    <div class="modal-foot"><button class="btn btn-primary" onclick="id('modal-obs').classList.add('hidden')">Entendido</button></div>
+    <div class="modal-foot"><button class="btn btn-primary" onclick="document.getElementById('modal-obs').classList.add('hidden')">Entendido</button></div>
   </div>
 </div>
 
@@ -747,7 +747,7 @@
         <div class="form-group full"><label>Email</label><input type="email" id="ep-email"></div>
         <div class="form-group full"><label>Observación</label><textarea id="ep-obs" rows="3"></textarea></div>
         <div class="full modal-foot" style="border-top:1px solid var(--border);">
-          <button type="button" class="btn btn-outline" onclick="id('modal-edit').classList.add('hidden')">Cancelar</button>
+          <button type="button" class="btn btn-outline" onclick="document.getElementById('modal-edit').classList.add('hidden')">Cancelar</button>
           <button type="submit" class="btn btn-primary">💾 Guardar</button>
         </div>
       </div>
@@ -760,7 +760,7 @@
   <div class="modal-box" style="max-width:400px;">
     <div class="modal-head">
       <h3 id="modal-day-title"></h3>
-      <button onclick="id('modal-day').classList.add('hidden')" style="background:none;border:none;font-size:1.3rem;color:var(--muted);cursor:pointer;">✕</button>
+      <button onclick="document.getElementById('modal-day').classList.add('hidden')" style="background:none;border:none;font-size:1.3rem;color:var(--muted);cursor:pointer;">✕</button>
     </div>
     <div id="modal-day-list" class="modal-body"></div>
   </div>
@@ -957,7 +957,7 @@ async function startApp() {
   id('screen-login').style.display = 'none';
   id('app').classList.add('visible');
   goTo('home');
-  id('visita-fecha').value = new Date().toISOString().split('T')[0];
+  id('visita-fecha').value = localToday();
   restoreDark();
   setLoadStatus('loading');
 
@@ -1127,8 +1127,10 @@ async function onSubmitNewPaciente(e) {
     S._pacRows.push([newId]);
     S.pacientes.push(data);
     S._statsPacientes = S.pacientes;
-    // Actualizar listado en home para que aparezca al volver
+    // Forzar re-render completo del listado (reset del scroll virtual)
+    _vScroll.list = [];
     renderPacientes(S.pacientes);
+    id('patients-count').textContent = S.pacientes.length;
 
     // Limpiar form
     ['np-nombre','np-apellido','np-fnac','np-obra','np-ciudad','np-telefono','np-obs','np-dni','np-email'].forEach(f=>{if(id(f))id(f).value='';});
@@ -1147,7 +1149,7 @@ function openPaciente(pid) {
   S.currentPaciente = p; S.pendingFiles = [];
   id('ph-title').textContent = p.apellido+', '+p.nombre;
   id('ph-sub').textContent   = p.obraSocial||'';
-  id('visita-fecha').value   = new Date().toISOString().split('T')[0];
+  id('visita-fecha').value   = localToday();
   id('visita-historial').value='';
   id('pending-files').innerHTML='';
   goTo('patient');
@@ -1633,7 +1635,10 @@ function restoreDark(){
 // ── MISC ─────────────────────────────────────────────────
 function abrirSheet(){window.open(`https://docs.google.com/spreadsheets/d/${SHEET_ID}`,'_blank');}
 function openNegatoscopio(){id('negatoscopio').style.display='block';}
-function fechaToISO(v){if(!v)return '';v=v.trim();if(/^\d{4}-\d{2}-\d{2}$/.test(v)){const p=v.split('-');return p[2]+'/'+p[1]+'/'+p[0];}return v;}
+function localToday() {
+  const d = new Date();
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+}
 
 // ── ESTADÍSTICAS ─────────────────────────────────────────
 let _charts={},_statsYear=null;
