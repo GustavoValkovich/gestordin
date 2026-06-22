@@ -48,7 +48,9 @@
       padding: 9px 12px;
       width: 100%;
       outline: none;
-      transition: border-color 0.15s;
+      /* Sin transition en inputs — causa lag al escribir en iPad */
+      -webkit-appearance: none;
+      appearance: none;
     }
     input:focus, textarea:focus, select:focus { border-color: var(--teal); }
     input::placeholder, textarea::placeholder { color: var(--muted); }
@@ -380,9 +382,14 @@
     body.dark .combo-option:hover { background: #0d3d39; }
     body.dark select { background: #0f172a; border-color: #334155; }
 
-    /* ── iOS PERF ──────────────────────────────────────────── */
+    /* ── iOS / iPAD PERFORMANCE ── */
+    * { -webkit-tap-highlight-color: transparent; }
+    button, label, .patient-row, .visit-row, .file-card { touch-action: manipulation; }
     .patient-list, .visit-list, #pac-files-list { -webkit-overflow-scrolling: touch; }
-    @media (hover: none) { .patient-row, .visit-row, .btn { transition: none !important; } }
+    /* Sin transiciones en touch — evita lag al escribir */
+    @media (hover: none) {
+      *, *::before, *::after { transition: none !important; animation: none !important; }
+    }
 
     /* ── STATS ─────────────────────────────────────────────── */
     .kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
@@ -407,7 +414,7 @@
 <body>
 
 <!-- ── LOGIN ──────────────────────────────────────────────── -->
-<div id="screen-login">
+<div id="screen-login" style="display:none;">
   <div class="logo">Gestor<span>DIN</span></div>
   <div class="sub">Sistema de Gestión de Pacientes</div>
   <button class="btn-google" id="btn-login">
@@ -700,8 +707,8 @@
 <!-- Observación -->
 <div id="modal-obs" class="modal-backdrop hidden" onclick="if(event.target===this)closeModal(this.id)">
   <div class="modal-box">
-    <div class="modal-head" style="background:#fef9c3;">
-      <h3>⚠️ Observación del Paciente</h3>
+    <div class="modal-head" style="background:#dc2626;">
+      <h3 style="color:#ffffff;">⚠️ Observación del Paciente</h3>
     </div>
     <div class="modal-body"><p id="obs-text" style="font-size:0.92rem;line-height:1.75;color:var(--text);white-space:pre-wrap;"></p></div>
     <div class="modal-foot"><button class="btn btn-primary" onclick="closeModal('modal-obs')">Entendido</button></div>
@@ -799,7 +806,7 @@ const S = {
   pendingFiles: [],
   _pacienteFolderUrl: null,
   cal: { year: new Date().getFullYear(), month: new Date().getMonth() },
-  recursos: { obrasSociales: [], ciudades: [], generos: ['Hombre','Mujer'] }
+  recursos: { obrasSociales: [], ciudades: [], generos: ['Masculino','Femenino','Hombre','Mujer'] }
 };
 
 // ── UTILS ────────────────────────────────────────────────
@@ -830,6 +837,12 @@ function goTo(screen) {
 function formatDate(str) {
   if (!str) return '—';
   const m = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+  // Extraer parte de fecha y hora opcional
+  const withTime = /^(\d{4}-\d{2}-\d{2})\s(\d{2}:\d{2})/.exec(str);
+  if (withTime) {
+    const p=withTime[1].split('-');
+    return `${+p[2]} de ${m[+p[1]-1]}. de ${p[0]} · ${withTime[2]}hs`;
+  }
   if (/^\d{4}-\d{2}-\d{2}$/.test(str)) { const p=str.split('-'); return `${+p[2]} de ${m[+p[1]-1]}. de ${p[0]}`; }
   if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) { const p=str.split('/'); return `${+p[0]} de ${m[+p[1]-1]}. de ${p[2]}`; }
   return str;
@@ -873,37 +886,75 @@ function setLoadStatus(estado) {
   ['load-dot','load-dot-visit'].forEach(eid => { const el=id(eid); if(el) el.style.background=c; });
 }
 
-// ── GOOGLE OAUTH ─────────────────────────────────────────
+// ── GOOGLE AUTH ──────────────────────────────────────────
+let _tokenClient = null;
+
 function initGoogleAuth() {
   const script = document.createElement('script');
   script.src = 'https://accounts.google.com/gsi/client';
   script.onload = () => {
-    // Intentar login silencioso primero
-    const saved = sessionStorage.getItem('gd_token');
-    if (saved) { S.token = saved; startApp(); return; }
-    id('btn-login').onclick = doLogin;
+    _tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: SCOPES,
+      prompt: '',        // sin popup si ya autorizó antes
+      callback: (resp) => {
+        if (resp.error) {
+          // Si falló el silencioso, mostrar botón de login
+          showLoginScreen();
+          return;
+        }
+        S.token = resp.access_token;
+        // Guardar hora de expiración (tokens duran 1 hora)
+        const exp = Date.now() + (resp.expires_in - 60) * 1000;
+        localStorage.setItem('gd_authorized', '1');
+        localStorage.setItem('gd_token_exp', String(exp));
+        S.token = resp.access_token;
+        scheduleTokenRefresh(resp.expires_in - 60);
+        startApp();
+      }
+    });
+
+    // Si ya autorizó antes, intentar renovación silenciosa
+    if (localStorage.getItem('gd_authorized') === '1') {
+      _tokenClient.requestAccessToken({ prompt: '' });
+    } else {
+      showLoginScreen();
+    }
   };
   document.head.appendChild(script);
 }
 
-function doLogin() {
-  const client = google.accounts.oauth2.initTokenClient({
-    client_id: CLIENT_ID,
-    scope: SCOPES,
-    callback: (resp) => {
-      if (resp.error) { toast('Error de autenticación: '+resp.error, 'error'); return; }
-      S.token = resp.access_token;
-      sessionStorage.setItem('gd_token', S.token);
-      startApp();
-    }
-  });
-  client.requestAccessToken();
+function showLoginScreen() {
+  document.getElementById('screen-login').style.display = 'flex';
+  document.getElementById('btn-login').onclick = doLogin;
 }
+
+function doLogin() {
+  _tokenClient.requestAccessToken({ prompt: 'select_account' });
+}
+
+// Renovar token automáticamente antes de que expire
+function scheduleTokenRefresh(secondsUntilExpiry) {
+  const ms = Math.max(secondsUntilExpiry * 1000, 5000);
+  setTimeout(() => {
+    if (localStorage.getItem('gd_authorized') === '1') {
+      _tokenClient.requestAccessToken({ prompt: '' });
+    }
+  }, ms);
+}
+
+// Si el token expiró entre sesiones, renovar silenciosamente al cargar
+window.addEventListener('load', () => {
+  const exp = parseInt(localStorage.getItem('gd_token_exp')||'0');
+  if (localStorage.getItem('gd_authorized') === '1' && Date.now() > exp) {
+    // El token expiró pero el usuario ya autorizó — renovar silencioso al cargar GSI
+  }
+});
 
 // ── API HELPERS ──────────────────────────────────────────
 async function apiGet(url) {
   const r = await fetch(url, { headers: { Authorization: 'Bearer '+S.token } });
-  if (r.status === 401) { sessionStorage.removeItem('gd_token'); location.reload(); }
+  if (r.status === 401) { S.token=null; if(_tokenClient) _tokenClient.requestAccessToken({prompt:''}); throw new Error('Token expirado, renovando…'); }
   if (!r.ok) throw new Error(await r.text());
   return r.json();
 }
@@ -914,7 +965,7 @@ async function apiPost(url, body) {
     headers: { Authorization: 'Bearer '+S.token, 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
-  if (r.status === 401) { sessionStorage.removeItem('gd_token'); location.reload(); }
+  if (r.status === 401) { S.token=null; if(_tokenClient) _tokenClient.requestAccessToken({prompt:''}); throw new Error('Token expirado, renovando…'); }
   if (!r.ok) throw new Error(await r.text());
   return r.json();
 }
@@ -1203,20 +1254,24 @@ function renderVisitas() {
 
 async function saveVisita() {
   const historial = id('visita-historial').value.trim();
-  const fecha     = id('visita-fecha').value;
+  const fechaBase = id('visita-fecha').value; // YYYY-MM-DD elegida por el usuario
   if (!historial && S.pendingFiles.length===0) { toast('Ingresá un historial o adjuntá un archivo','error'); return; }
   showOverlay('Guardando visita…');
   try {
     const visRows = await sheetGet('Visitas!A:A');
     const newId   = nextId(visRows);
-    await sheetAppend('Visitas!A:E', [[newId, S.currentPaciente.id, fecha, historial, new Date().toLocaleDateString('es-AR')]]);
+    // Guardar fecha con hora local: YYYY-MM-DD HH:MM
+    const now = new Date();
+    const hhmm = pad(now.getHours())+':'+pad(now.getMinutes());
+    const fechaConHora = fechaBase + ' ' + hhmm;
+    await sheetAppend('Visitas!A:E', [[newId, S.currentPaciente.id, fechaConHora, historial, new Date().toLocaleDateString('es-AR')]]);
     S._visRows.push([newId]);
-    const newV = { id:String(newId), idPaciente:S.currentPaciente.id, fecha, historial, pacienteNombre:S.currentPaciente.apellido+', '+S.currentPaciente.nombre };
+    const newV = { id:String(newId), idPaciente:S.currentPaciente.id, fecha:fechaConHora, historial, pacienteNombre:S.currentPaciente.apellido+', '+S.currentPaciente.nombre };
     S.todasVisitas.push(newV);
     S._statsVisitas.push(newV);
     renderCalendar();
     if (S.pendingFiles.length>0) {
-      await uploadAllFiles(String(newId), fecha);
+      await uploadAllFiles(String(newId), fechaBase); // carpeta usa solo la fecha sin hora
       S.pendingFiles=[]; id('pending-files').innerHTML='';
     }
     id('visita-historial').value='';
