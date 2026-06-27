@@ -912,86 +912,56 @@ function setLoadStatus(estado) {
 let _tokenClient = null;
 
 function initGoogleAuth() {
-  // Detectar modo PWA (pantalla de inicio)
-  const isPWA = window.navigator.standalone === true ||
-                window.matchMedia('(display-mode: standalone)').matches;
-
   const script = document.createElement('script');
   script.src = 'https://accounts.google.com/gsi/client';
-  script.onerror = () => {
-    // GSI no cargó (sin internet o bloqueado) — mostrar error
-    document.getElementById('screen-login').style.display = 'flex';
-    document.getElementById('btn-login').textContent = 'Sin conexión. Revisá tu internet.';
-    document.getElementById('btn-login').disabled = true;
-  };
+  script.onerror = () => showLoginScreen('Sin conexión a internet');
   script.onload = () => {
-    const savedHint = localStorage.getItem('gd_hint') || '';
-
     _tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: CLIENT_ID,
       scope: SCOPES,
-      hint: savedHint,    // email del usuario para renovación silenciosa
-      prompt: '',
       callback: onTokenReceived
     });
-
-    if (localStorage.getItem('gd_authorized') === '1') {
-      // Ya autorizó antes — renovar silenciosamente
-      _tokenClient.requestAccessToken({ prompt: '' });
-    } else {
-      showLoginScreen();
-    }
+    showLoginScreen();
   };
   document.head.appendChild(script);
 }
 
 function onTokenReceived(resp) {
   if (resp.error) {
-    if (resp.error === 'interaction_required' || resp.error === 'access_denied') {
-      showLoginScreen();
-    } else {
-      showLoginScreen();
-    }
+    showLoginScreen('Error: ' + resp.error);
     return;
   }
   S.token = resp.access_token;
-  localStorage.setItem('gd_authorized', '1');
-  // Renovar automáticamente 5 min antes de expirar
-  const secsLeft = (resp.expires_in || 3600) - 300;
-  setTimeout(() => {
-    if (_tokenClient && localStorage.getItem('gd_authorized') === '1') {
-      _tokenClient.requestAccessToken({ prompt: '' });
-    }
-  }, secsLeft * 1000);
-  // Si la app ya está corriendo y visible, solo actualizar token (no reiniciar)
-  if (document.getElementById('app').classList.contains('visible')) {
-    // Token renovado en background — reintentar si había error previo
-    if (window._retryStartApp) { window._retryStartApp = false; startApp(); }
-    return;
-  }
+  // Programar renovación 10 min antes de expirar
+  const secsLeft = (resp.expires_in || 3600) - 600;
+  setTimeout(silentRenew, secsLeft * 1000);
+  // Si ya estaba cargada la app, solo renovar token
+  if (document.getElementById('app').classList.contains('visible')) return;
   startApp();
 }
 
-function showLoginScreen() {
+function silentRenew() {
+  if (!_tokenClient) return;
+  // prompt: '' intenta renovar sin popup — si falla, no hacer nada
+  // el usuario verá el error cuando intente usar la app
+  _tokenClient.requestAccessToken({ prompt: '' });
+}
+
+function showLoginScreen(msg) {
   document.getElementById('screen-login').style.display = 'flex';
+  document.getElementById('app').classList.remove('visible');
   document.getElementById('btn-login').onclick = doLogin;
+  if (msg) document.getElementById('btn-login').title = msg;
 }
 
 function doLogin() {
   _tokenClient.requestAccessToken({ prompt: 'select_account' });
 }
 
-function logout() {
-  localStorage.removeItem('gd_authorized');
-  localStorage.removeItem('gd_hint');
-  S.token = null;
-  location.reload();
-}
-
 // ── API HELPERS ──────────────────────────────────────────
 async function apiGet(url) {
   const r = await fetch(url, { headers: { Authorization: 'Bearer '+S.token } });
-  if (r.status === 401) { S.token=null; window._retryStartApp=true; if(_tokenClient) _tokenClient.requestAccessToken({prompt:''}); return null; }
+  if (r.status === 401) { S.token=null; showLoginScreen(); return null; }
   if (!r.ok) throw new Error(await r.text());
   return r.json();
 }
@@ -1002,7 +972,7 @@ async function apiPost(url, body) {
     headers: { Authorization: 'Bearer '+S.token, 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
-  if (r.status === 401) { S.token=null; window._retryStartApp=true; if(_tokenClient) _tokenClient.requestAccessToken({prompt:''}); return null; }
+  if (r.status === 401) { S.token=null; showLoginScreen(); return null; }
   if (!r.ok) throw new Error(await r.text());
   return r.json();
 }
@@ -1051,13 +1021,6 @@ function nextId(rows) {
 async function startApp() {
   document.getElementById('screen-login').style.display = 'none';
   document.getElementById('app').classList.add('visible');
-
-  // Guardar email del usuario para renovación silenciosa futura
-  try {
-    const info = await apiGet('https://www.googleapis.com/oauth2/v3/userinfo');
-    if (info.email) localStorage.setItem('gd_hint', info.email);
-  } catch(e) {}
-
   goTo('home');
   id('visita-fecha').value = localToday();
   restoreDark();
