@@ -948,11 +948,9 @@ function initGoogleAuth() {
 function onTokenReceived(resp) {
   if (resp.error) {
     if (resp.error === 'interaction_required' || resp.error === 'access_denied') {
-      // Necesita interacción del usuario
       showLoginScreen();
     } else {
       showLoginScreen();
-      toast('Error de autenticación: ' + resp.error, 'error');
     }
     return;
   }
@@ -965,8 +963,12 @@ function onTokenReceived(resp) {
       _tokenClient.requestAccessToken({ prompt: '' });
     }
   }, secsLeft * 1000);
-  // Si la app ya está corriendo solo actualizar el token, no reiniciar
-  if (document.getElementById('app').classList.contains('visible')) return;
+  // Si la app ya está corriendo y visible, solo actualizar token (no reiniciar)
+  if (document.getElementById('app').classList.contains('visible')) {
+    // Token renovado en background — reintentar si había error previo
+    if (window._retryStartApp) { window._retryStartApp = false; startApp(); }
+    return;
+  }
   startApp();
 }
 
@@ -989,7 +991,7 @@ function logout() {
 // ── API HELPERS ──────────────────────────────────────────
 async function apiGet(url) {
   const r = await fetch(url, { headers: { Authorization: 'Bearer '+S.token } });
-  if (r.status === 401) { S.token=null; if(_tokenClient) _tokenClient.requestAccessToken({prompt:''}); throw new Error('Token expirado, renovando…'); }
+  if (r.status === 401) { S.token=null; window._retryStartApp=true; if(_tokenClient) _tokenClient.requestAccessToken({prompt:''}); return null; }
   if (!r.ok) throw new Error(await r.text());
   return r.json();
 }
@@ -1000,7 +1002,7 @@ async function apiPost(url, body) {
     headers: { Authorization: 'Bearer '+S.token, 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
-  if (r.status === 401) { S.token=null; if(_tokenClient) _tokenClient.requestAccessToken({prompt:''}); throw new Error('Token expirado, renovando…'); }
+  if (r.status === 401) { S.token=null; window._retryStartApp=true; if(_tokenClient) _tokenClient.requestAccessToken({prompt:''}); return null; }
   if (!r.ok) throw new Error(await r.text());
   return r.json();
 }
@@ -1018,6 +1020,7 @@ async function apiPut(url, body) {
 async function sheetGet(range) {
   const url = `${SHEETS_BASE}/${SHEET_ID}/values/${encodeURIComponent(range)}`;
   const r = await apiGet(url);
+  if (!r) return [];
   return r.values || [];
 }
 
@@ -1064,6 +1067,7 @@ async function startApp() {
   showOverlay('Cargando datos…');
   try {
     const batch = await sheetGetAll();
+    if (!batch) return; // token expirado, se está renovando
     const vr = batch.valueRanges;
     const pacRows = vr[0].values || [];
     const visRows = vr[1].values || [];
