@@ -1,0 +1,22 @@
+{
+  "name": "GestorDIN",
+  "short_name": "GestorDIN",
+  "description": "Sistema de Gestión de Pacientes",
+  "start_url": "/gestordin/",
+  "scope": "/gestordin/",
+  "display": "browser",
+  "background_color": "#f8fafc",
+  "theme_color": "#0f2542",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
