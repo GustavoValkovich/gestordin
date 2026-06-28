@@ -417,18 +417,22 @@
 </head>
 <body>
 <script>
-// Si está en modo standalone (acceso directo desde pantalla de inicio),
-// Google OAuth no puede funcionar — mostrar mensaje para abrir en browser
-if (window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches) {
+// En iOS standalone, target="_blank" no funciona — usar location.href
+function abrirEnNavegador() {
+  window.location.href = 'https://gustavovalkovich.github.io/gestordin';
+}
+// Solo bloquear en iOS standalone (window.navigator.standalone === true)
+// En Android standalone el OAuth sí puede funcionar
+if (window.navigator.standalone === true) {
   document.addEventListener('DOMContentLoaded', function() {
     document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;text-align:center;padding:32px;font-family:-apple-system,sans-serif;background:#f8fafc;">' +
       '<div>' +
         '<div style="font-size:2.5rem;font-weight:900;color:#0f2542;letter-spacing:-1px;">Gestor<span style="color:#0d9488;">DIN</span></div>' +
-        '<p style="font-size:1rem;font-weight:600;color:#1a2e44;margin:20px 0 8px;">Para usar GestorDIN abrilo<br>desde tu navegador</p>' +
+        '<p style="font-size:1rem;font-weight:600;color:#1a2e44;margin:20px 0 8px;">Para usar GestorDIN abrilo<br>desde Safari</p>' +
         '<p style="font-size:0.83rem;color:#64748b;margin-bottom:28px;">El acceso directo desde la pantalla de inicio no es compatible con el inicio de sesión de Google.</p>' +
-        '<a href="https://gustavovalkovich.github.io/gestordin" target="_blank" ' +
-           'style="display:inline-block;background:#0d9488;color:white;padding:14px 28px;border-radius:12px;text-decoration:none;font-weight:700;font-size:0.95rem;">' +
-          '🌐 Abrir en el navegador</a>' +
+        '<button onclick="abrirEnNavegador()" ' +
+           'style="display:inline-block;background:#0d9488;color:white;padding:14px 28px;border-radius:12px;border:none;font-weight:700;font-size:0.95rem;cursor:pointer;">' +
+          '🌐 Abrir en Safari</button>' +
       '</div>' +
     '</div>';
   });
